@@ -16,6 +16,8 @@ spec:
       containers:
        - name: frontend
          image: leandrolbbernardes/pucminas:frontend-react-guess-game
+         ports:
+          - containerPort: 80
          resources:
            requests:
              memory: "10Mi"
