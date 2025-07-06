@@ -79,7 +79,7 @@ Exemplo: `kubectl -n guess-game get pods`.
 
 Para este projeto, utilizei o Minikube em conjunto com o WSL. Como estou usando o Windows 11 Home, não tenho suporte ao Hyper-V, portanto precisei usar o WSL. Nessa configuração, o Minikube não é executado como uma VM, mas sim como um container Docker, o que pode dificultar um pouco a exposição dos serviços via NodePort.
 
-Por esse motivo, para acessar o frontend, utilizei o comando `minikube service frontend -n guess-game --url` que cria um túnel e fornece a URL temporária para acessar o serviço. Como a porta exposta pode mudar a cada execução, optei por manter o backend como ClusterIP e utilizar o NGINX como proxy reverso, seguindo a mesma abordagem usada na Prática 01 com Docker Compose.
+Por esse motivo, para acessar o frontend, utilizei o comando `minikube service frontend -n guess-game --url` que cria um túnel e fornece a URL temporária para acessar o serviço. Como a porta exposta pode mudar a cada execução, optei por manter o backend como ClusterIP e utilizar o NGINX como proxy reverso, seguindo a mesma abordagem usada na Prática 01 com Docker Compose. O problema dessa abordagem, é que o backend fica dependente do container do front estar funcionando corretamente, o que nessa prática tbm não seria um problema, já que não é necessário o acesso da api externa, apenas pelo frontend.
 
 No entanto, existem outras alternativas. Eu poderia ter exposto o backend também como NodePort e, durante o build da imagem do frontend, definido a variável de ambiente REACT_APP_BACKEND_URL apontando para: `http://<IP do cluster>:<porta exposta no service backend nodeport>`.
 
