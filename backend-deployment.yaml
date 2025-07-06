@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: guess-game
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: leandrolbbernardes/pucminas:backend-flask-guess-game
+          resources:
+            requests:
+              memory: "10Mi"
+              cpu: "10m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+          env:
+            - name: FLASK_ENV
+              value: "production"
+            - name: FLASK_APP
+              value: "run.py"
+            - name: FLASK_DB_TYPE
+              value: "postgres"
+            - name: FLASK_DB_USER
+              value: "postgres"
+            - name: FLASK_DB_NAME
+              value: "postgres"
+            - name: FLASK_DB_PASSWORD
+              value: "secretpass"
+            - name: FLASK_DB_HOST
+              value: "postgresdb"
+            - name: FLASK_DB_PORT
+              value: "5432"
+          livenessProbe:
+            tcpSocket:
+              port: 5000
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
