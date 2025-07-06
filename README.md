@@ -42,6 +42,12 @@ Exemplo: `kubectl -n guess-game get pods`.
     kubectl apply -f backend-hpa.yaml
     ```
 
+    OBS: Para o HPA funcionar, o `metrics-server` tem de estar no cluster.
+
+    ```bash
+    kubectl get deployment metrics-server -n kube-system
+    ```
+
 6. Deploy do frontend (Node + NGINX)
 
     ```bash
