@@ -5,10 +5,9 @@ metadata:
   namespace: guess-game
 spec:
   storageClassName: ""
-  persistentVolumeReclaimPolicy: Retain
   capacity:
-    storage: 1Gi
+    storage: 2Gi
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   hostPath:
     path: /data/postgres
