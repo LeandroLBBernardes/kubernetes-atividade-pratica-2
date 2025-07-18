@@ -109,10 +109,17 @@ Exemplo: `kubectl -n guess-game get pods`.
 
     ```bash
     kubectl apply -f postgresdb-pv.yaml
+
+    # espere até que tenha subido corretamente o pv
+
     kubectl apply -f postgresdb-pvc.yaml
+
+    # aguarde até o status ficar: Bound
+
+    kubectl -n guess-game get pvc
     ```
 
-    Utilizei a política de acesso `ReadWriteMany` para permitir leitura e escrita por múltiplos nós.
+    Utilizei a política de acesso `ReadWriteOnce` para permitir leitura e escrita.
 
 4. Deploy do banco de dados PostgreSQL
 
@@ -126,6 +133,8 @@ Exemplo: `kubectl -n guess-game get pods`.
 5. Deploy do backend (Flask) com HPA
 
     ```bash
+    # garanta que o banco tenha subido corretamente primeiro, o código flask apita erro caso não tenha subido o banco
+
     kubectl apply -f backend-deployment.yaml
     kubectl apply -f backend-service.yaml
     kubectl apply -f backend-hpa.yaml
