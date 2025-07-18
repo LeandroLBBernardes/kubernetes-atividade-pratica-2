@@ -1,5 +1,13 @@
 # Guia de Execução – Guess Game no Kubernetes
 
+## Pré-requisitos
+
+Certifique-se de possuir ao menos um cluster Kubernetes válido configurado. Algumas opções que você pode utilizar são:
+
+* **Docker Engine**
+* **Minikube**
+* **Microk8s**
+
 # Sumário
 
 1. [Descrição dos Componentes](#descrição-dos-componentes)  
@@ -69,6 +77,17 @@ O PersistentVolume, `postgresdb-pv`, utiliza um caminho local no host /data/post
 
 O `service` do banco de dados é do tipo ClusterIP, expondo internamente a aplicação na porta 5432.
 
+---
+
+Ingress:
+  - guess-game-ingress.yaml
+
+O recurso Ingress é responsável por expor os serviços do cluster Kubernetes para fora, permitindo que os usuários acessem as aplicações utilizando um único ponto de entrada, geralmente com base em nomes de host e caminhos. Neste caso, o Ingress está configurado para o namespace guess-game e utiliza a classe de Ingress do NGINX.
+
+A anotação nginx.ingress.kubernetes.io/rewrite-target: /$1 é usada para reescrever a URL antes que ela seja encaminhada ao serviço de backend. O valor /$1 corresponde ao primeiro grupo de captura das expressões regulares definidas nos paths, permitindo remover prefixos da URL externa ao encaminhar a requisição para o serviço correto. Isso ajuda a poder usar rotas como /maker em outra aba.
+
+Foi separado em dois paths usando o mesmo host: `guessgame.local`, esses paths foram para separar o tráfego do frontend para backend. (exige ingress controller) 
+
  
 ## Ordem da execução dos comandos
 
@@ -76,7 +95,7 @@ Todos os recursos desta aplicação estão sob o namespace `guess-game`. Portant
 
 Exemplo: `kubectl -n guess-game get pods`.
 
-1. Navegar até o diretório do projeto
+1. Extrair os arquivos da pasta `k8s-manifest`, navegar até o diretório onde foi feita a extração
 
     Abra o terminal e vá até o local onde você extraiu os arquivos ou clonou o repositório.
 
@@ -123,10 +142,7 @@ Exemplo: `kubectl -n guess-game get pods`.
     ```bash
     kubectl apply -f frontend-deployment.yaml
     kubectl apply -f frontend-service.yaml
-    kubectl apply -f frontend-secret.yaml
     ```
-
-    O secret nesse caso é o arquivo de configuração do nginx.conf, que foi configurado para tanto servir front estatico como proxy reverso para backend, abaixo explico melhor a decisão de usar. Caso precise de alguma alteração, basta alterar no secret o arquivo dentro, mas primeiro precisa converter em base64, por isso deixei ele alocado no projeto também.
 
 8. Conferir se tudo subiu corretamente
 
@@ -139,47 +155,63 @@ Exemplo: `kubectl -n guess-game get pods`.
     kubectl get pv
     ```
 
+9. Subir ingress (caso tenha ingress controller)
+
+    ```bash
+      kubectl apply -f guess-game-ingress.yaml
+
+      # conferir se subiu corretamente
+      kubectl -n guess-game get ingress
+    ```
+
 7. Acessar frontend
 
-   Como o frontend está exposto via `NodePort` na porta `30080`, basta acessá-lo diretamente por: `http://<IP do Cluster>:30080`.
+    Como o frontend está exposto via `NodePort` na porta `30080`, basta acessá-lo diretamente por: `http://<IP do Cluster>:30080`.
 
-    Como usei o minikube, usei o comando: `minikube service frontend -n guess-game --url` que fará um tunnel e listará a URL para abrir no navegador. Esse comando criará um túnel e exibirá a URL que pode ser acessada diretamente no navegador. Caso esteja usando o driver Hyper-V (o que não foi o meu caso), `minikube ip`, utilizar esse ip + a porta, ou seja: `http://<IP em minikube ip>:30080`.
+    OBS: Como usei o minikube, usei o comando: `minikube service frontend -n guess-game --url` que fará um tunnel e listará a URL para abrir no navegador. Esse comando criará um túnel e exibirá a URL que pode ser acessada diretamente no navegador.
+
+    Caso opte por acessar a aplicação via Ingress, isso também é possível. Para isso, adicione uma entrada no arquivo `/etc/hosts` do seu sistema, apontando o domínio com o nome do host do ingress para o IP do seu cluster. Exemplo:
+
+    ```
+    <ip do cluster>   guessgame.local
+    ```
+
+    Após isso, você poderá acessar a aplicação normalmente pelo navegador, usando o endereço: `http://guessgame.local`
+
+    OBS: Certifique-se de que o Ingress Controller (como o NGINX Ingress) esteja corretamente instalado e funcionando no cluster.
 
 ## Considerações finais
 
-Para este projeto, utilizei o Minikube em conjunto com o WSL. Como estou usando o Windows 11 Home, não tenho suporte ao Hyper-V, portanto precisei usar o WSL. Nessa configuração, o Minikube não é executado como uma VM, mas sim como um container Docker, o que pode dificultar um pouco a exposição dos serviços via NodePort.
 
-Por esse motivo, para acessar o frontend, utilizei o comando `minikube service frontend -n guess-game --url` que cria um túnel e fornece a URL temporária para acessar o serviço. Como a porta exposta pode mudar a cada execução, optei por manter o backend como ClusterIP e utilizar o NGINX como proxy reverso, seguindo a mesma abordagem usada na Prática 01 com Docker Compose. O problema dessa abordagem, é que o backend e o frontend ficam dependentes entre si, o que nessa prática acredito que não seria um problema, já que não é necessário o acesso da api externa, apenas pelo frontend, e para a aplicação estar funcionando, ambos precisam existir (em um ambiente produtivo essa prática não seria recomendada).
+Para este projeto, adotei duas abordagens complementares para garantir o funcionamento adequado da aplicação: NodePort e Ingress.
 
-No entanto, existem outras alternativas. Eu poderia ter exposto o backend também como NodePort e, durante o build da imagem do frontend, definido a variável de ambiente REACT_APP_BACKEND_URL apontando para: `http://<IP do cluster>:<porta exposta no service backend nodeport>`.
+### Primeira abordagem: NodePort
 
-Entretanto, devido à aleatoriedade da porta no Minikube com túnel, preferi manter o backend como ClusterIP e delegar ao NGINX a função de redirecionar as requisições para o backend e facilitar os testes locais. Dessa forma, na variável REACT_APP_BACKEND_URL, utilizei apenas "/api" durante o build do frontend.
+Nessa abordagem, o frontend atua como um proxy reverso tanto para os arquivos estáticos (HTML, CSS, JS) quanto para o serviço do backend. Isso gera um acoplamento direto entre as duas aplicações, tornando o backend acessível somente quando o frontend estiver em funcionamento. Ou seja, a API se torna dependente da aplicação de frontend, o que não é ideal do ponto de vista arquitetural, especialmente em ambientes de produção.
 
-Além disso, enfrentei dificuldades para configurar corretamente o Ingress Controller, e por isso decidi não utilizá-lo, evitando a necessidade de configurar entradas no /etc/hosts. Apesar disso, reconheço que a abordagem ideal seria com o uso de Ingress, o que permitiria expor tanto o frontend quanto o backend sob o mesmo host, diferenciando apenas pelo path, como por exemplo:
+### Segunda abordagem: Ingress
 
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: guess-game-ingress
-  namespace: guess-game
-spec:
-  rules:
-    - host: guessgame.local
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: frontend
-                port:
-                  number: 80
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: backend
-                port:
-                  number: 5000
+Por isso, como forma de desacoplar os componentes e permitir mais flexibilidade, implementei também a exposição via Ingress. Essa abordagem permite isolar o funcionamento de cada serviço e acessá-los de forma independente, com rotas bem definidas. O Ingress também facilita o roteamento baseado em path, como por exemplo:
+
+```arduino
+http://guessgame.local/        → Frontend  
+http://guessgame.local/api     → Backend
 ```
+
+Para que isso funcione, é necessário adicionar uma entrada no arquivo /etc/hosts, apontando o domínio para o IP do cluster. Exemplo:
+
+```
+<IP_DO_CLUSTER>   guessgame.local
+```
+
+Assim, o navegador poderá resolver corretamente os domínios definidos no Ingress Controller (como o NGINX Ingress).
+
+### Atualização dos componentes
+
+1. Atualize o código-fonte do serviço conforme necessário.
+
+2. Reconstrua a imagem Docker e envie-a para o Docker Hub, pode ser a mesma tag, ou um incremento caso use CI/CD e queira manter um histórico.
+
+3. Reaplique o manifesto .yaml do Deployment correspondente com o comando `kubectl apply -f ...`
+
+Componentes sem ser deployment podem ser atualizados seguindo a mesma lógica usando o `kubectl apply -f ...`
