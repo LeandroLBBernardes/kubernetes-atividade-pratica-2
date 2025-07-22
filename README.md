@@ -30,6 +30,8 @@ Backend:
 
 Para o `deployment` do `backend` a imagem utilizada para o container foi a `leandrolbbernardes/pucminas:backend-flask-guess-game` que contém a aplicação desenvolvida em Flask. As variáveis de ambiente definidas configuram a aplicação para o ambiente de produção e fornecem os dados de conexão com o banco de dados PostgreSQL.
 
+No deployment, o Init Container wait-for-postgres tem a função de aguardar até que o serviço do banco de dados PostgreSQL (postgresdb) esteja acessível na porta 5432, garantindo que a aplicação principal só inicie quando o banco estiver pronto para receber conexões e assim evitar erros de subida como `CrashLoopBackOff`.
+
 O container também define limites e requisições de recursos, assegurando que ele solicite no mínimo 10Mi de memória e 10m de CPU para iniciar, com um limite máximo de 256Mi de memória e 250m de CPU. 
 
 O livenessProbe foi utilizado para verificar se o container continua funcionando corretamente ao longo do tempo. Foi configurada uma sonda TCP na porta 5000, que será ativada após um delay inicial de 60 segundos.
@@ -111,11 +113,12 @@ Exemplo: `kubectl -n guess-game get pods`.
     kubectl apply -f postgresdb-pv.yaml
 
     # espere até que tenha subido corretamente o pv
+    kubectl get pv
 
+    # apos subir o pv corretamente
     kubectl apply -f postgresdb-pvc.yaml
 
     # aguarde até o status ficar: Bound
-
     kubectl -n guess-game get pvc
     ```
 
@@ -134,7 +137,10 @@ Exemplo: `kubectl -n guess-game get pods`.
 
     ```bash
     # garanta que o banco tenha subido corretamente primeiro, o código flask apita erro caso não tenha subido o banco
+    kubectl -n guess-game get pods
 
+    # caso nao tenha subido, o init containers se encarregara de somente subir o container principal
+    # assim que o servico do banco estiver de pe
     kubectl apply -f backend-deployment.yaml
     kubectl apply -f backend-service.yaml
     kubectl apply -f backend-hpa.yaml
@@ -190,7 +196,6 @@ Exemplo: `kubectl -n guess-game get pods`.
     OBS: Certifique-se de que o Ingress Controller (como o NGINX Ingress) esteja corretamente instalado e funcionando no cluster.
 
 ## Considerações finais
-
 
 Para este projeto, adotei duas abordagens complementares para garantir o funcionamento adequado da aplicação: NodePort e Ingress.
 
